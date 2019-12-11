@@ -47,7 +47,6 @@ void execute()
 		clock_t start = clock();
 		cout << "Decompressing..." << endl;
 		huffman h(inFile + ".bin", outFile);
-		h.recreateHuffmanTree();
 		h.decodingSave();
 		clock_t finish = clock();
 		double duration = (double)finish - start;
