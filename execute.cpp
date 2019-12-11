@@ -1,5 +1,5 @@
 #include "execute.h"
-
+#include "jpeg_compression.h"
 
 void execute()
 {
@@ -9,7 +9,9 @@ void execute()
 	cout << "2. Decompressing file" << endl;
 	cout <<	"3. Compressing folder"<<endl;
 	cout << "4. Decompressing folder"<<endl;
-	cout << "5. Exit" << endl;
+	cout <<	"5. Compress Image"<<endl;
+	cout << "6. Decompress Image"<<endl;
+	cout << "0. Exit" << endl;
 	cout << "------------------" << endl;
 	cout << "Which option do you want: ";
 	cin >> choice;
@@ -61,6 +63,29 @@ void execute()
 		break;
 	case 4:
 		decompressFolder();
+		break;
+	case 5:
+		string inFile, outFile;
+		cout << "Enter your image path: ";
+		cin.ignore();
+		getline(cin, inFile);
+		cout << "Enter the output path: ";
+		getline(cin, outFile);
+		cout << "Enter quality: ";
+		int quality;
+		cin >> quality;
+		compress(inFile, outFile, quality);
+		cout << "Done";
+		break;
+	case 6:
+		string inFile, outFile;
+		cout << "Enter your archive path: ";
+		cin.ignore();
+		getline(cin, inFile);
+		cout << "Enter the output path: ";
+		getline(cin, outFile);
+		decompress(inFile, outFile);
+		cout << "Done";
 		break;
 	default:
 		exit(0);
