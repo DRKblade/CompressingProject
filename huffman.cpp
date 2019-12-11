@@ -2,104 +2,73 @@
 
 void huffman::createNodeArray()
 {
-	//128 stands for 128 basic ASCII 
-	for (int i = 0; i < 128; i++)
+	for (int i = 0; i < 256; i++)
 	{
-		nodeArray[i] = new huffman_node;
-		nodeArray[i]->id = i;
-		nodeArray[i]->freq = 0;
+	    // mỗi node ứng với một ký tự
+		nodeArray[i].id = i;
+		nodeArray[i].freq = 0;
 	}
 }
-//using recursive to get each character's code
-void huffman::traverse(huffNode node, string code)
+void huffman::traverse(phuffman_node node, huffcode code)
 {
 	if (node->left == NULL && node->right == NULL)
 		node->code = code;
 	else
 	{
-		traverse(node->left, code + '0');
-		traverse(node->right, code + '1');
+		traverse(node->left, code.branch_left());
+		traverse(node->right, code.branch_right());
 	}
 }
 
-int huffman::binaryToDecimal(string& in)
+inline void huffman::buildTree(huffcode path, unsigned char aCode)
 {
-	int result = 0;
-	for (int i = 0; i < in.size(); i++)
-		result = result * 2 + in[i] - '0';
-	return result;
-}
-
-string huffman::decimalToBinary(int in)
-{
-	string temp = "";
-	string result = "";
-	while (in)
+	phuffman_node current = root;
+	for (unsigned int i = 0; i < path.length; i++)
 	{
-		temp += ('0' + in % 2);
-		in /= 2;
-	}
-	result.append(8 - temp.size(), '0');
-	for (int i = temp.size()-1; i >= 0; i--)
-		result += temp[i];
-	return result;
-}
-
-inline void huffman::buildTree(string& path, char aCode)
-{
-	huffNode current = root;
-	for (int i = 0; i < path.size(); i++)
-	{
-		if (path[i] == '0')
+		if (path.value & 1u<<i)
 		{
-			if (current->left == NULL)
-				current->left = new huffman_node;
-			current = current->left;
-		}
-		else if (path[i] == '1')
-		{
-			if (current->right == NULL)
-				current->right = new huffman_node;
-			current = current->right;
+            if (current->right == nullptr)
+                current->right = new huffman_node;
+            current = current->right;
+		} else {
+            if (current->left == nullptr)
+                current->left = new huffman_node;
+            current = current->left;
 		}
 	}
 	current->id = aCode;
+	current->code = path;
 }
-//init file name 
 huffman::huffman(string in, string out)
 {
 	finName = in;
 	foutName = out;
 	createNodeArray();
 }
-//encoding
 void huffman::createPq()
 {
+    unsigned char id;
 	fin.open(finName, ios::in);
 	if (!fin)
 	{
 		cerr << "Error!" << endl;
 		return;
 	}
-	fin.get(id);
-	//get character (id) by character
 	while (!fin.eof())
 	{
-		nodeArray[id]->freq++;
-		fin.get(id);
+        fin.get((char&)id);
+		nodeArray[id].freq++;
 	}
 	fin.close();
-	//priority queue: the less frequency each character the higher priority it takes in the queue
-	for (int i = 0; i < 128; i++)
+	for (int i = 0; i < 256; i++)
 	{
-		if (nodeArray[i]->freq)
-			pq.push(nodeArray[i]);
+		if (nodeArray[i].freq)
+			pq.push(&nodeArray[i]);
 	}
 }
-//init Huffman tree by definiton
 void huffman::createHuffmanTree()
 {
-	priority_queue<huffNode, vector<huffNode>, compare> temp(pq);
+	priority_queue<phuffman_node, vector<phuffman_node>, compare> temp(pq);
 	while (temp.size() > 1)
 	{
 		root = new huffman_node;
@@ -113,12 +82,22 @@ void huffman::createHuffmanTree()
 		temp.push(root);
 	}
 }
-//get table code
 void huffman::calculateHufmanCodes()
 {
-	traverse(root, "");
+	traverse(root, huffcode());
 }
-//encoding
+void write_tree(phuffman_node node, ostream& stream){
+    if(node) {
+        if(node->left == NULL && node->right == NULL){
+            stream.write((char*)&node->id, 1);
+            stream.write((char*)&node->code, sizeof(huffcode));
+            cout<<(int)node->code.length<<endl;
+        } else {
+            write_tree(node->left, stream);
+            write_tree(node->right, stream);
+        }
+    }
+}
 void huffman::codingSave()
 {
 	fin.open(finName, ios::in);
@@ -128,84 +107,39 @@ void huffman::codingSave()
 		cerr << "Error!" << endl;
 		return;
 	}
-	string in = "", s = "";
+    fin.seekg(0, ios_base::seekdir::_S_end);
+    unsigned long file_size = fin.tellg();
+    fin.seekg(0, ios_base::seekdir::_S_beg);
+    fout.write((char*)&file_size, sizeof(file_size));
 
-	in += (char)pq.size();
-	priority_queue<huffNode, vector<huffNode>, compare> temp(pq);
-	while (!temp.empty())
-	{
-		huffNode current = temp.top();
-		in += current->id;
-		//Replaces the current value by n consecutive copies of character c.
-		s.assign(127 - current->code.size(), '0');
-		s += '1';
-		s.append(current->code);
-		in += (char)binaryToDecimal((string&)s.substr(0,8));
-		for (int i = 0; i < 15; i++)
-		{
-			s = s.substr(8);
-			in += (char)binaryToDecimal((string&)s.substr(0, 8));
-		}
-		temp.pop();
-	}
-	s.clear();
+	unsigned long long buffer = 0;
+	unsigned short length = 0;
+	unsigned char id;
 
-	fin.get(id);
+	unsigned char temp_output = pq.size();
+    unsigned short temp_short = pq.size();
+	fout.write((char*)&temp_short, 2);
+	write_tree(root, fout);
 	while (!fin.eof())
 	{
-		s += nodeArray[id]->code;
-		while (s.size() > 8)
+        fin.get((char&)id);
+//        cout<<fin.tellg()<<" "<<fout.tellp()<<" in "<<(int)id<<" "<<nodeArray[id].code.value<<" "<<(int)nodeArray[id].code.length<<endl;
+		buffer += (unsigned long long)nodeArray[id].code.value << (unsigned long long)length;
+		length += nodeArray[id].code.length;
+		if(length>31)
+		while (length>=8)
 		{
-			in += (char)binaryToDecimal((string&)s.substr(0, 8));
-			s = s.substr(8);
+		    temp_output = buffer % 256;
+            fout.write((char*)&temp_output, 1);
+            buffer >>= 8;
+            length -=8;
 		}
-		fin.get(id);
 	}
-	int count = 8 - s.size();
-	if (s.size() < 8)
-	{
-		s.append(count, '0');
-	}
-	in += (char)binaryToDecimal(s);
-	in += (char)count;
+    temp_output = buffer % 256;
+    fout.write((char*)&temp_output, 1);
 
-	fout.write(in.c_str(), in.size());
 	fin.close();
 	fout.close();
-}
-//decoding
-void huffman::recreateHuffmanTree()
-{
-	fin.open(finName, ios::in | ios::binary);
-	if (!fin)
-	{
-		cerr << finName << " can't open!" << endl;
-		return;
-	}
-	unsigned char size;
-	//reinterpret_cast: type_casting ( hardly error ) ( pointer to pointer)																			
-	fin.read(reinterpret_cast<char*>(&size), 1);
-	root = new huffman_node;
-	for (int i = 0; i < size; i++)
-	{
-		char newCode;
-		unsigned char codeCharacter[16];																
-		fin.read(&newCode, 1);
-		fin.read(reinterpret_cast<char*>(codeCharacter), 16);
-		string codeString = "";
-		for (int i = 0; i < 16; i++)
-		{
-			codeString += decimalToBinary(codeCharacter[i]);
-		}
-		int j = 0;
-		while (codeString[j] == '0')
-		{
-			j++;
-		}
-		codeString = codeString.substr(j + 1);
-		buildTree(codeString, newCode);
-	}
-	fin.close();
 }
 
 void huffman::decodingSave()
@@ -217,46 +151,60 @@ void huffman::decodingSave()
 		cerr << "Error!" << endl;
 		return;
 	}
-	unsigned char size;
-	//get the size of huffman tree																		
-	fin.read(reinterpret_cast<char*>(&size), 1);
-	//jump to the last one byte to get the number of '0' append to the string at last
-	fin.seekg(-1, ios::end);															
-	char countZero;
-	fin.read(&countZero, 1);
-	//jump to the position where text starts
-	fin.seekg((1 + 17 * size), ios::beg);													
-	vector<unsigned char> text;
-	unsigned char textseg;
-	fin.read(reinterpret_cast<char*>(&textseg), 1);
-	while (!fin.eof())
-	{//get the text byte by byte using unsigned char
-		text.push_back(textseg);
-		fin.read(reinterpret_cast<char*>(&textseg), 1);
-	}
-	huffNode current = root;
-	string path;
-	for (int i = 0; i < text.size() - 1; i++)
-	{//translate the huffman code
-		path = decimalToBinary(text[i]);
-		if (i == text.size() - 2)
-			path = path.substr(0, 8 - countZero);
-		for (int j = 0; j < path.size(); j++)
-		{
-				if (path[j] == '0')
-				{
-					current = current->left;
-				}
-				else{
-					current = current->right;
-				}
-				if (current->left==NULL  && current->right==NULL )
-				{
-					fout.put(current->id);
-					current = root;
-				}
-		}
-	}
+    unsigned long file_size;
+    fin.read((char*)&file_size, sizeof(file_size));
+
+    unsigned short size;
+    fin.read((char*)(&size), 2);
+    root = new huffman_node;
+    for (int i = 0; i < size; i++)
+    {
+        unsigned char newCode;
+        huffcode code;
+        fin.read((char*)&newCode, 1);
+        fin.read((char*)(&code), sizeof(huffcode));
+        buildTree(code, newCode);
+    }
+
+    auto current_pos = root;
+    unsigned char value = 0, length = 8;
+    for(unsigned long i = 0; i<file_size; i++) {
+        while(current_pos->left!= NULL || current_pos->right!=NULL){
+            if(length == 8){
+                fin.read((char*)&value, 1);
+                length = 0;
+            }
+            if(value & (1u<<length++))
+                current_pos = current_pos->right;
+            else current_pos = current_pos->left;
+            if(current_pos == nullptr){
+                cout<<"internal error 1";
+                throw;
+            }
+        }
+        fout.write((char*)&current_pos->id, 1);
+//        cout<<fout.tellp()<<" "<<fin.tellg()<<" out "<<(int)current_pos->id<<" "<<current_pos->code.value<<" "<<(int)current_pos->code.length<<endl;
+        current_pos = root;
+    }
 	fin.close();
 	fout.close();
+}
+
+bool file_check(string file1, string file2) {
+    auto f1 = fopen(file1.c_str(), "rb");
+    auto f2 = fopen(file2.c_str(), "rb");
+
+    if(!f1 || !f2)
+        throw;
+
+    char temp1=0, temp2=0;
+    while(!feof(f1) && !feof(f2)) {
+        fread(&temp1, 1, 1, f1);
+        fread(&temp2, 1, 1, f2);
+        if(temp1!=temp2)
+            break;
+    }
+    if(temp1!=temp2)
+        return false;
+    return feof(f2) && feof(f1);
 }
